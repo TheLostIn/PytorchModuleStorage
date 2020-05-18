@@ -7,7 +7,7 @@ from pprint import pprint
 class MutipleKeysDict(OrderedDict):
     """
     Allow to get values from multiple keys. Example:
-    
+
     ```python
     d = MutipleKeysDict({ 'a' : 1, 'b' : 2, 'c' : 3})
     d[['a', 'b']]
@@ -15,7 +15,7 @@ class MutipleKeysDict(OrderedDict):
     ```
     """
     def __getitem__(self, keys):
-        
+
         if type(keys) is list:
             item = [dict.__getitem__(self, key) for key in keys]
         else: item = super().__getitem__(keys)
@@ -30,14 +30,14 @@ class ModuleStorage():
         self.state = self._state
         self.unsubcribe = []
         self.debug = debug
-    
+
     @property
     def _state(self):
-        return MutipleKeysDict({ 
-            k : MutipleKeysDict() if type(self.where2layers) == dict else [] 
-            for k in self.names 
+        return MutipleKeysDict({
+            k : MutipleKeysDict() if type(self.where2layers) == dict else []
+            for k in self.names
         })
-    
+
     @property
     def names(self):
         names = []
@@ -46,7 +46,7 @@ class ModuleStorage():
         elif type(self.where2layers) is list:
             names = self.where2layers
         return names
-    
+
     @property
     def layers(self):
         """
@@ -57,8 +57,8 @@ class ModuleStorage():
             layers = reduce(lambda a, b: a + b, self.where2layers.values())
         elif type(self.where2layers) is list:
             layers = self.where2layers
-        return layers 
-    
+        return layers
+
     def register_hooks(self, how='forward'):
         """
         Loop in all the layers and register a hook. There is ONLY one hook per layer to improve
@@ -74,16 +74,16 @@ class ModuleStorage():
             else:
                 raise ValueError("type must be 'forward' or 'backward'")
             if self.debug: print(f"[INFO] {how} hook registered to {layer}")
-        
+
     def hook(self, m, i, o, name):
         if self.debug: print(f"{m} called")
-            
+
         if type(self.where2layers) == dict:
-    #       store only the outputs from the correct layers defined in self.where2layers
-            if m in self.where2layers[self.where]: self.state[self.where][name] = o
+    #       store inputs and outputs from the correct layers defined in self.where2layers
+            if m in self.where2layers[self.where]: self.state[self.where][name] = {'input':i,'output':o}
         if type(self.where2layers) is list:
-            self.state[name].append(o) 
-            
+            self.state[name].append({'input':i,'output':o})
+
     def clear(self):
         if self.debug: print('[INFO] clear')
         [un.remove() for un in self.unsubcribe]
@@ -92,15 +92,15 @@ class ModuleStorage():
         if where is not None:
             if where not in self.keys(): raise(f"we cannot find any layers with key {where}")
             self.where = where
-        
+
     def __repr__(self):
         items = lambda x: x.items() if type(x) == MutipleKeysDict else enumerate(x)
-        return str({k: [{i : e.shape for i, e in items(v)}] for k, v in self.state.items()})    
+        return str({k: [{i : e.shape for i, e in items(v)}] for k, v in self.state.items()})
 
     def __getitem__(self, key):
         item = self.state[key]
         return item
-    
+
     def keys(self):
         return self.state.keys()
 
@@ -110,18 +110,18 @@ class ForwardModuleStorage(ModuleStorage):
         super().__init__(*args, **kwargs)
         self.module = module
         self.register_hooks(how='forward')
-        
-        
+
+
     def __call__(self, x, *args, **kwargs):
         super().__call__(*args, **kwargs)
         if type(x) != list: x = [x]
         [self.module(_x) for _x in x]
-        
+
 class BackwardModuleStorage(ModuleStorage):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.register_hooks(how='backward')
-        
+
     def __call__(self, x, *args, **kwargs):
         super().__call__(*args, **kwargs)
         if type(x) != list: x = [x]
